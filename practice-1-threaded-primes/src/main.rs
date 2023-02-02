@@ -27,7 +27,7 @@ fn main() {
 
     let timer = Instant::now();
     for i in 0..MAX_THREADS {
-        threads.push(thread::spawn(move || {
+        threads.push(thread::spawn(|| {
             let mut res = Vec::new();
             let mut c = start + (i * 2) as i32;
             while c <= end {
