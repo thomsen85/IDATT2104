@@ -24,7 +24,7 @@ fn handle_connection(mut stream: TcpStream) {
     let buf_reader = BufReader::new(&mut stream);
     let http_request: String = buf_reader
         .lines()
-        .map(|result| result.unwrap())
+        .map(|result| result.unwrap_or("".to_string()))
         .take_while(|line| !line.is_empty())
         .map(|mut f| {f.push('\n'); f})
         .collect();
