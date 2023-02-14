@@ -1,6 +1,7 @@
 pub mod thread_pool;
 pub mod http;
 pub mod bitbuilder;
+pub mod websockets;
 
 #[cfg(test)]
 mod tests {

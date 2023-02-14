@@ -34,16 +34,19 @@ const socket = new WebSocket("ws://127.0.0.1:7888", "chat");
 
 socket.onopen = function (e) {
   console.log("Connection established");
-  setInterval(function () {
-    if (socket.bufferedAmount == 0) {
-      console.log('Sending Message to server');
-      socket.send('thomas');
-    }
-  }, 500);
+  // setInterval(function () {
+  //   if (socket.bufferedAmount == 0) {
+  //     console.log('Sending Message to server');
+  //     socket.send('thomas');
+  //   }
+  // }, 500);
 };
 
 socket.onmessage = function (event) {
-  console.log(`Data received from server: ${event.data}`);
+  alert(`Data received from server: ${event.data}`);
+  console.log(
+    `Data received from server: ${event.data}`
+    );
 };
 
 socket.onclose = function (event) {

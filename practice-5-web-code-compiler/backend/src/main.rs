@@ -4,12 +4,11 @@ use std::{
 };
 
 use base64::{
-    alphabet,
-    engine::{self, general_purpose},
+    engine::general_purpose,
     Engine as _,
 };
-use network_common::bitbuilder::BitBuilder;
 use network_common::http::Request;
+use network_common::websockets::SocketMessage;
 use network_common::thread_pool::Pool;
 
 use sha1::{Digest, Sha1};
@@ -72,62 +71,26 @@ Sec-WebSocket-Protocol: chat\r\n
     stream.write_all(response.as_bytes()).unwrap();
 
     loop {
-        let mut buf = [0; 1024];
-        println!("{:?}", stream.read(&mut buf));
+        // let mut buf = [0; 1024];
 
-        println!("{:?}", buf);
-        let message = get_message(&buf);
+        // println!("Waiting for message...");
+        // stream.read(&mut buf).unwrap();
+        // println!("Message recived.");
 
+        // let message = SocketMessage::from_message(&buf);
+        // println!("Message: {:?}", message.payload);
+        blocking_counter(5);
+
+        println!("Sending Message...");
+        let send_message = SocketMessage::new("Hello from server".to_string());
+        stream.write_all(&send_message.to_bytes()).unwrap();
+        println!("Message sendt.");
+    }
+}
+
+fn blocking_counter(secs: u64) {
+    for i in 0..secs {
+        println!("Blocking counter: {}", i);
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
-}
-
-fn get_message(message: &[u8]) -> String {
-    let mut bitbuilder = BitBuilder::new();
-
-    bitbuilder.append_bytes(message);
-
-    let fin = bitbuilder.get_bit(0).unwrap();
-    let rsv1 = bitbuilder.get_bit(1).unwrap();
-    let rsv2 = bitbuilder.get_bit(2).unwrap();
-    let rsv3 = bitbuilder.get_bit(3).unwrap();
-    let opcode = bit_vec_to_u32(bitbuilder.get_bits(4..8).unwrap());
-    let mask = bitbuilder.get_bit(8).unwrap();
-    let payload_len = bit_vec_to_u32(bitbuilder.get_bits(9..16).unwrap());
-    let mask_key = bitbuilder.get_bytes(2..=5).unwrap();
-
-    println!(
-        "fin: {}, rsv1: {}, rsv2: {}, rsv3: {}, opcode: {}, mask: {}, payload_len: {}",
-        fin, rsv1, rsv2, rsv3, opcode, mask, payload_len,
-    );
-
-
-    let mut res = String::new();
-
-    let base = 6;
-    
-    let mut mask_i = 0;
-    let mut message_i = 0;
-
-    while message_i < (payload_len/8) as usize {
-        dbg!(message[base + message_i], mask_key[mask_i]);
-
-        let unmasked = message[base + message_i] ^ mask_key[mask_i];
-        res.push(unmasked as char);
-        message_i += 1;
-        mask_i = (mask_i + 1) % 4;
-    }
-
-    println!("Result: {}", res);
-    res
-}
-
-fn bit_vec_to_u32(bit_vec: Vec<bool>) -> u32 {
-    let mut res = 0;
-    for (i, bit) in bit_vec.iter().enumerate() {
-        if *bit {
-            res += 2u32.pow(i as u32);
-        }
-    }
-    res
 }

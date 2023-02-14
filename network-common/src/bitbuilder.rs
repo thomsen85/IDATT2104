@@ -96,6 +96,11 @@ impl BitBuilder {
     }
 
     pub fn push_byte(&mut self, byte: u8) {
+        dbg!(self.bit_pos);
+        if self.bit_pos == 8 {
+            self.bit_pos = 0;
+            self.bytes.push(0);
+        }
         // Adding to last
         *self.bytes.last_mut().unwrap() |= byte >> self.bit_pos;
         if self.bit_pos == 0 {
@@ -111,7 +116,7 @@ impl BitBuilder {
         }
     }
 
-    pub fn add_u32(&mut self, input: u32) {
+    pub fn push_u32(&mut self, input: u32) {
         let b1: u8 = ((input >> 24) & 0xff) as u8;
         let b2: u8 = ((input >> 16) & 0xff) as u8;
         let b3: u8 = ((input >> 8) & 0xff) as u8;
@@ -127,17 +132,26 @@ impl BitBuilder {
         let mut result = String::new();
 
         for i in 0..self.len() {
-            if self.get_bit(i).unwrap() {
-                result.push('1');
-            } else {
-                result.push('0');
+            if let Some(b) = self.get_bit(i) {
+                if i % 4 == 0 {
+                    result.push(' ');
+                }
+                if b {
+                    result.push('1');
+                } else {
+                    result.push('0');
+                }
             }
         }
         result
     }
 
     pub fn len(&self) -> usize {
-        self.bytes.len() * 8 + self.bit_pos as usize
+        self.bytes.len() * 8 - (8 - self.bit_pos as usize)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
     }
 
 }
