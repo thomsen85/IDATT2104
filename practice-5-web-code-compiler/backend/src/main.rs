@@ -94,7 +94,7 @@ fn get_message(message: &[u8]) -> String {
     let opcode = bit_vec_to_u32(bitbuilder.get_bits(4..8).unwrap());
     let mask = bitbuilder.get_bit(8).unwrap();
     let payload_len = bit_vec_to_u32(bitbuilder.get_bits(9..16).unwrap());
-    let mask_key = bitbuilder.get_bytes(3..=6).unwrap();
+    let mask_key = bitbuilder.get_bytes(2..=5).unwrap();
 
     println!(
         "fin: {}, rsv1: {}, rsv2: {}, rsv3: {}, opcode: {}, mask: {}, payload_len: {}",
@@ -104,12 +104,12 @@ fn get_message(message: &[u8]) -> String {
 
     let mut res = String::new();
 
-    let base = 7;
+    let base = 6;
     
     let mut mask_i = 0;
     let mut message_i = 0;
 
-    while message_i <= 20 as usize {
+    while message_i < (payload_len/8) as usize {
         dbg!(message[base + message_i], mask_key[mask_i]);
 
         let unmasked = message[base + message_i] ^ mask_key[mask_i];
