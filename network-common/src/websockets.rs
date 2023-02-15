@@ -1,7 +1,11 @@
-use std::{net::{TcpListener, TcpStream}, io::{Read, BufReader, BufRead}};
+use std::{net::{TcpListener, TcpStream}, io::{Read, BufReader, BufRead, Write}};
 
 use crate::{bitbuilder::BitBuilder, http::Request};
-
+use base64::{
+    self,
+    Engine as _,
+};
+use sha1::{Digest, Sha1};
 const HASH_KEY: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 #[derive(Debug)]
@@ -36,6 +40,13 @@ impl SocketMessage {
         let opcode = bit_vec_to_u32(&bitbuilder.get_bits(4..8).unwrap());
         let mask = bitbuilder.get_bit(8).unwrap();
         let payload_len = bit_vec_to_u32(&bitbuilder.get_bits(9..16).unwrap());
+
+        if payload_len == 126 {
+            todo!("Extended payload length not yet implementeted");
+        } else if payload_len == 127 {
+            todo!("Extended payload length not yet implementeted");
+        }
+
         let mask_key = bitbuilder.get_bytes(2..=5).unwrap();
 
         let mut payload = String::new();
@@ -64,10 +75,9 @@ impl SocketMessage {
     }
 
     pub fn set_payload(&mut self, payload: String) {
-        self.payload_len = payload.len() as u32;
+        self.payload_len = payload.len() as u32 + 1; // +1 for the null byte
         self.payload = payload;
     }
-
 
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bitbuilder = BitBuilder::new();
@@ -146,11 +156,45 @@ impl SocketStream {
             .map(|mut f| {f.push('\n'); f})
             .collect::<String>()
             .into();
-    
+
+        if let Some(upgrade) = http_request.headers.get("Upgrade") {
+            if upgrade != "websocket" {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, "Not a websocket request"));
+            }
+        } else {
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "Not a websocket request"));
+        }
+
+
+        let accept_response = Self::_get_accept_response(&http_request);
+        tcp_stream.write_all(accept_response.as_bytes())?;
+
         Ok(Self {
             tcp_stream
         })
     }
+
+    fn _get_accept_response(http_request: &Request) -> String {
+        let mut web_sock_key = http_request
+        .headers
+        .get("Sec-WebSocket-Key")
+        .expect("No header Sec-WebSocket-Key")
+        .to_owned();
+    web_sock_key.push_str(HASH_KEY);
+
+    let mut hasher = Sha1::new();
+    hasher.update(web_sock_key.as_bytes());
+
+    let hash = base64::engine::general_purpose::STANDARD.encode(hasher.finalize());
+
+    format!("\
+        HTTP/1.1 101 Switching Protocols\r\n\
+        Upgrade: websocket\r\n\
+        Connection: Upgrade\r\n\
+        Sec-WebSocket-Accept: {hash}\r\n\
+        Sec-WebSocket-Protocol: chat\r\n\n"
+    )
+}
 }
 
 
