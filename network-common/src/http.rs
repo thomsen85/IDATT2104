@@ -67,3 +67,17 @@ fn _parse_method(input: &str) -> IResult<&str, Request> {
     Ok((input, Request { method, path: path.to_string(), headers }))
 }
 
+pub enum StatusCode {
+    OK = 200,
+    BAD_REQUEST,
+    NotFound,
+    InternalServerError
+}
+
+#[derive(Debug)]
+pub struct Response {
+    pub http_version: String,
+    pub status: u16,
+    pub headers: HashMap<String, String>,
+    pub body: String
+}

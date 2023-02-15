@@ -96,7 +96,6 @@ impl BitBuilder {
     }
 
     pub fn push_byte(&mut self, byte: u8) {
-        dbg!(self.bit_pos);
         if self.bit_pos == 8 {
             self.bit_pos = 0;
             self.bytes.push(0);

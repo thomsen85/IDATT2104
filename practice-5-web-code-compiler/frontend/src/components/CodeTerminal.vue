@@ -43,7 +43,6 @@ socket.onopen = function (e) {
 };
 
 socket.onmessage = function (event) {
-  alert(`Data received from server: ${event.data}`);
   console.log(
     `Data received from server: ${event.data}`
     );

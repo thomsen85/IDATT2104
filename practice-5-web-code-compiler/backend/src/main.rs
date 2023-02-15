@@ -1,6 +1,6 @@
 use std::{
     io::{prelude::*, BufReader},
-    net::{TcpListener, TcpStream},
+    net::{TcpListener, TcpStream}, thread,
 };
 
 use base64::{
@@ -19,6 +19,7 @@ const HASH_KEY: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 fn main() {
     let listener = TcpListener::bind(URL).unwrap();
     let mut pool = Pool::new(3);
+
     pool.start();
     for stream in listener.incoming() {
         let stream = stream.unwrap();
@@ -33,9 +34,9 @@ fn handle_connection(mut stream: TcpStream) {
         .lines()
         .map(|result| result.unwrap_or("".to_string()))
         .take_while(|line| !line.is_empty())
-        .map(|mut f| {
-            f.push('\n');
-            f
+        .map(|mut line| {
+            line.push('\n');
+            line
         })
         .collect::<String>()
         .into();
@@ -70,26 +71,31 @@ Sec-WebSocket-Protocol: chat\r\n
 
     stream.write_all(response.as_bytes()).unwrap();
 
+    let mut read_stream = stream.try_clone().expect("Could not clone reading stream");
+    thread::spawn(move || {
+        println!("Starting reading thread");
+        loop {
+            let mut buf = [0; 1024];
+            println!("Waiting for message...");
+            read_stream.read(&mut buf).unwrap();
+            
+            let message = SocketMessage::from_message(&buf);
+            println!("Message: {:?}", message.payload);
+            
+        }
+    });
+
     loop {
-        // let mut buf = [0; 1024];
-
-        // println!("Waiting for message...");
-        // stream.read(&mut buf).unwrap();
-        // println!("Message recived.");
-
-        // let message = SocketMessage::from_message(&buf);
-        // println!("Message: {:?}", message.payload);
-        blocking_counter(5);
-
+        blocking_counter(3);
         println!("Sending Message...");
-        let send_message = SocketMessage::new("Hello from server".to_string());
+        let send_message = SocketMessage::new("Hello :)".to_string());
         stream.write_all(&send_message.to_bytes()).unwrap();
         println!("Message sendt.");
     }
 }
 
 fn blocking_counter(secs: u64) {
-    for i in 0..secs {
+    for i in (1..=secs).rev() {
         println!("Blocking counter: {}", i);
         std::thread::sleep(std::time::Duration::from_secs(1));
     }

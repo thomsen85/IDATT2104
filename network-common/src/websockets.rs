@@ -1,6 +1,6 @@
-use std::net::TcpListener;
+use std::{net::{TcpListener, TcpStream}, io::{Read, BufReader, BufRead}};
 
-use crate::bitbuilder::BitBuilder;
+use crate::{bitbuilder::BitBuilder, http::Request};
 
 const HASH_KEY: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -18,9 +18,9 @@ pub struct SocketMessage {
 }
 
 impl SocketMessage {
-    pub fn new(payload: String) -> Self{
+    pub fn new(payload: String) -> Self {
         Self {
-            payload_len: payload.len() as u32,
+            payload_len: payload.len() as u32 + 1, // +1 for the null byte
             payload,
             ..Default::default()
         }
@@ -33,9 +33,9 @@ impl SocketMessage {
         let rsv1 = bitbuilder.get_bit(1).unwrap();
         let rsv2 = bitbuilder.get_bit(2).unwrap();
         let rsv3 = bitbuilder.get_bit(3).unwrap();
-        let opcode = bit_vec_to_u32(bitbuilder.get_bits(4..8).unwrap());
+        let opcode = bit_vec_to_u32(&bitbuilder.get_bits(4..8).unwrap());
         let mask = bitbuilder.get_bit(8).unwrap();
-        let payload_len = bit_vec_to_u32(bitbuilder.get_bits(9..16).unwrap());
+        let payload_len = bit_vec_to_u32(&bitbuilder.get_bits(9..16).unwrap());
         let mask_key = bitbuilder.get_bytes(2..=5).unwrap();
 
         let mut payload = String::new();
@@ -43,7 +43,7 @@ impl SocketMessage {
         let mut mask_i = 0;
         let mut message_i = 0;
 
-        while message_i < (payload_len / 8) as usize {
+        while message_i < payload_len as usize {
             let unmasked = message[base + message_i] ^ mask_key[mask_i];
             payload.push(unmasked as char);
             message_i += 1;
@@ -104,6 +104,16 @@ fn payload_len_to_bits(payload_len: u32) -> Vec<bool> {
     result
 }
 
+fn bit_vec_to_u32(bit_vec: &Vec<bool>) -> u32 {
+    let mut res = 0;
+    for (i, bit) in bit_vec.iter().rev().enumerate() {
+        if *bit {
+            res += 2u32.pow(i as u32);
+        }
+    }
+    res
+}
+
 impl Default for SocketMessage {
     fn default() -> Self {
         Self {
@@ -121,16 +131,26 @@ impl Default for SocketMessage {
 }
 
 #[derive(Debug)]
-pub struct SocketConnection {
-    tcp_listener: TcpListener,
+pub struct SocketStream {
+    tcp_stream: TcpStream,
 }
 
-fn bit_vec_to_u32(bit_vec: Vec<bool>) -> u32 {
-    let mut res = 0;
-    for (i, bit) in bit_vec.iter().enumerate() {
-        if *bit {
-            res += 2u32.pow(i as u32);
-        }
+
+impl SocketStream {
+    pub fn accept(mut tcp_stream: TcpStream) -> Result<Self, std::io::Error> {
+        let buf_reader = BufReader::new(&mut tcp_stream);
+        let http_request: Request = buf_reader
+            .lines()
+            .map(|result| result.unwrap_or("".to_string()))
+            .take_while(|line| !line.is_empty())
+            .map(|mut f| {f.push('\n'); f})
+            .collect::<String>()
+            .into();
+    
+        Ok(Self {
+            tcp_stream
+        })
     }
-    res
 }
+
+
