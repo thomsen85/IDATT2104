@@ -1,4 +1,4 @@
-use std::{net::{TcpListener, TcpStream}, io::{Read, BufReader, BufRead, Write}};
+use std::{net::{TcpListener, TcpStream, Shutdown}, io::{Read, BufReader, BufRead, Write, self}};
 
 use crate::{bitbuilder::BitBuilder, http::Request};
 use base64::{
@@ -29,7 +29,7 @@ impl SocketMessage {
             ..Default::default()
         }
     }
-    pub fn from_message(message: &[u8]) -> Self {
+    pub fn from_message(message: &[u8]) -> io::Result<Self> {
         let mut bitbuilder = BitBuilder::new();
         bitbuilder.append_bytes(message);
 
@@ -61,7 +61,7 @@ impl SocketMessage {
             mask_i = (mask_i + 1) % 4;
         }
 
-        Self {
+        Ok(Self {
             fin,
             rsv1,
             rsv2,
@@ -71,7 +71,7 @@ impl SocketMessage {
             payload_len,
             mask_key,
             payload,
-        }
+        })
     }
 
     pub fn set_payload(&mut self, payload: String) {
@@ -93,14 +93,11 @@ impl SocketMessage {
         bitbuilder.push_bit(self.opcode & 1 == 1);
 
         bitbuilder.push_bit(self.mask);
-        println!("Bitbuilder bits after some headers: {}", bitbuilder.len());
 
         bitbuilder.append_bits(&payload_len_to_bits(self.payload_len));
-        println!("Bitbuilder bits after headers: {}", bitbuilder.len());
 
         bitbuilder.append_bytes(self.payload.as_bytes());
 
-        println!("{}", bitbuilder.get_bitstring());
         bitbuilder.as_bytes().to_vec()
     }
 }
@@ -147,16 +144,7 @@ pub struct SocketStream {
 
 
 impl SocketStream {
-    pub fn accept(mut tcp_stream: TcpStream) -> Result<Self, std::io::Error> {
-        let buf_reader = BufReader::new(&mut tcp_stream);
-        let http_request: Request = buf_reader
-            .lines()
-            .map(|result| result.unwrap_or("".to_string()))
-            .take_while(|line| !line.is_empty())
-            .map(|mut f| {f.push('\n'); f})
-            .collect::<String>()
-            .into();
-
+    pub fn accept(http_request: Request, mut tcp_stream: TcpStream) -> Result<Self, std::io::Error> {
         if let Some(upgrade) = http_request.headers.get("Upgrade") {
             if upgrade != "websocket" {
                 return Err(std::io::Error::new(std::io::ErrorKind::Other, "Not a websocket request"));
@@ -195,6 +183,27 @@ impl SocketStream {
         Sec-WebSocket-Protocol: chat\r\n\n"
     )
 }
+
+    pub fn send_message(&mut self, message: &SocketMessage) -> io::Result<()> {
+        self.tcp_stream.write_all(&message.to_bytes())
+    }
+
+    pub fn read_message_blocking(&mut self) -> io::Result<SocketMessage> {
+        let buf = &mut [0; 1024];
+        self.tcp_stream.read(buf)?;
+        let msg = SocketMessage::from_message(buf)?;
+
+        if msg.opcode == 8 {
+            self.tcp_stream.shutdown(Shutdown::Both)?;
+        }
+        Ok(msg)
+    }
+
+    pub fn try_clone(&self) -> io::Result<Self> {
+        Ok(Self {
+            tcp_stream: self.tcp_stream.try_clone()?
+        })
+    }
 }
 
 

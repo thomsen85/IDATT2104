@@ -1,13 +1,13 @@
 use std::{
     io::{prelude::*, BufReader},
-    net::{TcpListener, TcpStream}, thread,
+    net::{TcpListener, TcpStream}, thread, process::Command, fs,
 };
 
 use base64::{
     engine::general_purpose,
     Engine as _,
 };
-use network_common::http::Request;
+use network_common::{http::{Request, Method, Response}, websockets::SocketStream};
 use network_common::websockets::SocketMessage;
 use network_common::thread_pool::Pool;
 
@@ -29,72 +29,78 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
+    println!("New Stream Incomming");
     let buf_reader = BufReader::new(&mut stream);
     let http_request: Request = buf_reader
         .lines()
         .map(|result| result.unwrap_or("".to_string()))
-        .take_while(|line| !line.is_empty())
-        .map(|mut line| {
-            line.push('\n');
-            line
-        })
+        .map(|mut f| {f.push('\n'); f})
         .collect::<String>()
         .into();
 
-    println!("{}", "#".repeat(40));
-    println!("{:?}", http_request);
-    println!("{}", "-".repeat(40));
+    dbg!(&http_request);
+    if let Some(upgrade) = http_request.headers.get("Upgrade") {
+        if upgrade == "websocket" {
+            handle_socket_connection(http_request, stream);
+        } else {
+            todo!("Other Upgrade Types not implemented yet");
+        }
+    } else {
+        handle_http_request(http_request, stream);
+    }
+}
 
-    // Hash Key
-    let mut web_sock_key = http_request
-        .headers
-        .get("Sec-WebSocket-Key")
-        .expect("No header Sec-WebSocket-Key")
-        .to_owned();
-    web_sock_key.push_str(HASH_KEY);
-
-    let mut hasher = Sha1::new();
-    hasher.update(web_sock_key.as_bytes());
-
-    let hash = general_purpose::STANDARD.encode(hasher.finalize());
-
-    let response = format!(
-        "HTTP/1.1 101 Switching Protocols\r
-Upgrade: websocket\r
-Connection: Upgrade\r
-Sec-WebSocket-Accept: {hash}\r
-Sec-WebSocket-Protocol: chat\r\n
-"
-    );
-
-    println!("{}", response);
-
-    stream.write_all(response.as_bytes()).unwrap();
-
+fn handle_socket_connection(request: Request, stream: TcpStream) {
+    let mut stream = SocketStream::accept(request, stream).expect("Only implemented for websockets");
     let mut read_stream = stream.try_clone().expect("Could not clone reading stream");
+    println!("Websocket Connection Established");
     thread::spawn(move || {
-        println!("Starting reading thread");
         loop {
-            let mut buf = [0; 1024];
-            println!("Waiting for message...");
-            read_stream.read(&mut buf).unwrap();
-            
-            let message = SocketMessage::from_message(&buf);
-            println!("Message: {:?}", message.payload);
+            let message = read_stream.read_message_blocking().expect("Could not read message");
+            println!("Message Recived: {:?}", message.payload);
             
         }
     });
 
-    loop {
-        blocking_counter(3);
-        println!("Sending Message...");
-        let send_message = SocketMessage::new("Hello :)".to_string());
-        stream.write_all(&send_message.to_bytes()).unwrap();
-        println!("Message sendt.");
+    // Command::new("docker")
+    //     .arg("exec")
+    //     .arg("-it")
+    //     .arg("rust_websockets")
+    //     .arg("bash")
+    //     .spawn()
+    //     .expect("Could not spawn docker exec bash");
+
+    blocking_counter(3);
+    println!("Sending Message...");
+    let message = SocketMessage::new("Hello :)".to_string());
+    stream.send_message(&message).unwrap();
+}
+
+fn handle_http_request(request: Request, stream: TcpStream) {
+    match request.method {
+        Method::GET => todo!("Get not implemented yet"),
+        Method::POST => handle_post_request(request, stream),
+        _ => todo!("Other methods not implemented yet"),
     }
 }
 
-fn blocking_counter(secs: u64) {
+fn handle_post_request(request: Request, mut stream: TcpStream) {
+
+    match request.path.as_str() {
+        "/compile" => {
+            
+            println!("Request body: {}", &request.body);
+
+            let response = Response::new();
+            dbg!(&response.as_string());
+            stream.write_all(&response.as_bytes()).unwrap();
+
+        },
+        _ => todo!("Other paths not implemented yet"),
+    }
+}
+
+fn blocking_counter(secs: u64) {    
     for i in (1..=secs).rev() {
         println!("Blocking counter: {}", i);
         std::thread::sleep(std::time::Duration::from_secs(1));
