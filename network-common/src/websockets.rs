@@ -162,6 +162,10 @@ impl SocketStream {
         })
     }
 
+    pub fn close(self) {
+        self.tcp_stream.shutdown(Shutdown::Both).unwrap();
+    }
+
     fn _get_accept_response(http_request: &Request) -> String {
         let mut web_sock_key = http_request
         .headers

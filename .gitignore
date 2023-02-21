@@ -1,3 +1,5 @@
 **/target/
 **/dist
 .vscode
+practice-5-web-code-compiler/backend/programs
+.DS_Store

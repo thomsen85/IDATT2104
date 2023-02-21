@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use itertools::Itertools;
-use nom::{IResult, bytes::complete::{tag, take_till, take_until}, multi::separated_list1, character::complete::multispace1};
+use nom::{IResult, bytes::complete::{tag, take_until}, multi::separated_list1, character::complete::multispace1};
 
 #[derive(Debug)]
 pub enum Method {
@@ -48,16 +48,15 @@ impl From<String> for Request {
 }
 
 fn _parse_method(input: &str) -> IResult<&str, Request> {
-    dbg!(input);
     let (input, method) = nom::bytes::complete::take_until(" ")(input)?;
-    dbg!(method);
     let method = Method::from_str(method).unwrap();
     let (input, _) = tag(" ")(input)?;
 
-    let (input, path) = nom::bytes::complete::take_until("\n")(input)?;
+    let (input, path) = nom::bytes::complete::take_until("\r\n")(input)?;
     let (_, path) = nom::bytes::complete::take_until(" ")(path)?;
-    let (input, headers) = take_until("\n\n")(input)?;
-    let (_, headers) = separated_list1(multispace1, nom::bytes::complete::take_until("\n"))(headers)?;
+    
+    let (input, headers) = take_until("\r\n\r\n")(input)?;
+    let (_, headers) = separated_list1(multispace1, nom::bytes::complete::take_until("\r\n"))(headers)?;
 
     let headers = headers.into_iter().map(|header| {
         if header.find(':').is_some() {
@@ -67,6 +66,11 @@ fn _parse_method(input: &str) -> IResult<&str, Request> {
             (header.to_string(), "".to_string())
         }
     }).collect();
+
+    if input.len() > 4 {
+        let (input, _) = tag("\r\n\r\n")(input)?;
+        return Ok((input, Request { method, path: path.to_string(), headers, body: input.to_string() }))
+    }
 
     Ok((input, Request { method, path: path.to_string(), headers, body: input.to_string() }))
 }
