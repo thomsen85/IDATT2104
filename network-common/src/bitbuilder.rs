@@ -1,20 +1,22 @@
-use std::ops::{Range, RangeBounds};
+
 
 #[derive(Debug, Clone)]
 pub struct BitBuilder {
-    bytes: Vec<u8>, 
+    bytes: Vec<u8>,
     bit_pos: u8,
 }
 
 impl BitBuilder {
     pub fn new() -> Self {
-        Self { bytes: vec![0], bit_pos: 0}
+        Self {
+            bytes: vec![0],
+            bit_pos: 0,
+        }
     }
 
     pub fn get_bit(&self, index: usize) -> Option<bool> {
-        
         let byte_index = index / 8;
-        if byte_index >= self.bytes.len()  {
+        if byte_index >= self.bytes.len() {
             return None;
         }
         if byte_index + 1 == self.bytes.len() && (index % 8) as u8 >= self.bit_pos {
@@ -26,8 +28,9 @@ impl BitBuilder {
         Some(bit == 1)
     }
 
-    pub fn get_bits<T>(&self, range: T) -> Option<Vec<bool>> 
-    where T: IntoIterator<Item = usize>
+    pub fn get_bits<T>(&self, range: T) -> Option<Vec<bool>>
+    where
+        T: IntoIterator<Item = usize>,
     {
         let mut result = Vec::new();
         for i in range {
@@ -41,7 +44,8 @@ impl BitBuilder {
     }
 
     pub fn get_bytes<T>(&self, range: T) -> Option<Vec<u8>>
-    where T: IntoIterator<Item = usize>
+    where
+        T: IntoIterator<Item = usize>,
     {
         let mut result = Vec::new();
         for i in range {
@@ -56,7 +60,7 @@ impl BitBuilder {
 
     pub fn get_byte(&self, index: usize) -> Option<u8> {
         let byte_index = index;
-        if byte_index >= self.bytes.len()  {
+        if byte_index >= self.bytes.len() {
             return None;
         }
 
@@ -80,8 +84,8 @@ impl BitBuilder {
         if self.bit_pos >= 8 {
             self.bit_pos = 0;
             self.bytes.push(0);
-        } 
-        
+        }
+
         if bit {
             *self.bytes.last_mut().unwrap() |= 1 << (7 - self.bit_pos)
         }
@@ -152,5 +156,4 @@ impl BitBuilder {
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
     }
-
 }

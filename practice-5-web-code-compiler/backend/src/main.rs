@@ -1,7 +1,8 @@
 use std::{
-    io::{self, prelude::*, BufReader},
+    fs,
+    io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
-    thread, fs, process::{Stdio, Command},
+    process::{Command, Stdio},
 };
 
 use network_common::thread_pool::Pool;
@@ -27,9 +28,7 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
-    println!("New Stream Incomming");
     let mut buf_reader = BufReader::new(&mut stream);
-    println!("Reading Incomming");
 
     let received: Vec<u8> = buf_reader.fill_buf().unwrap().to_vec();
     buf_reader.consume(received.len());
@@ -51,7 +50,7 @@ fn handle_connection(mut stream: TcpStream) {
 fn handle_socket_connection(request: Request, stream: TcpStream) {
     let mut stream =
         SocketStream::accept(request, stream).expect("Only implemented for websockets");
-        
+
     let mut read_stream = stream.try_clone().expect("Could not clone reading stream");
     println!("Websocket Connection Established");
     let message = read_stream
@@ -62,33 +61,34 @@ fn handle_socket_connection(request: Request, stream: TcpStream) {
     let code = fs::read_to_string(format!("programs/p_{}.rs", message.payload)).unwrap();
 
     let mut output = Command::new("docker")
-            .arg("run")
-            .arg("-t")
-            .arg("--rm")
-            .arg("rust:latest")
-            .arg("bash")
-            .arg("-c")
-            .arg(format!("cargo new program && cd program && printf '{}' > src/main.rs && cargo run", code))
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Failed to execute docker run command");
+        .arg("run")
+        .arg("-t")
+        .arg("--rm")
+        .arg("rust:latest")
+        .arg("bash")
+        .arg("-c")
+        .arg(format!(
+            "cargo new program && cd program && printf '{}' > src/main.rs && cargo run",
+            code
+        ))
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute docker run command");
 
-        {
-            let stdout = output.stdout.as_mut().unwrap();
-            let stdout_reader = BufReader::new(stdout);
-            let stdout_lines = stdout_reader.lines();
-    
-            for line in stdout_lines {
-                let message = SocketMessage::new(line.unwrap());
-                stream.send_message(&message).unwrap();
+    {
+        let stdout = output.stdout.as_mut().unwrap();
+        let stdout_reader = BufReader::new(stdout);
+        let stdout_lines = stdout_reader.lines();
 
-            }
+        for line in stdout_lines {
+            let message = SocketMessage::new(line.unwrap());
+            stream.send_message(&message).unwrap();
         }
+    }
 
-        output.wait().unwrap();
-        println!("Program Executed");
-        stream.close();
-
+    output.wait().unwrap();
+    println!("Program Executed");
+    stream.close();
 }
 
 fn handle_http_request(request: Request, stream: TcpStream) {
@@ -102,29 +102,33 @@ fn handle_http_request(request: Request, stream: TcpStream) {
 #[derive(Debug, Deserialize)]
 struct Body {
     id: String,
-    code: String
+    code: String,
 }
 
 fn handle_post_request(request: Request, mut stream: TcpStream) {
     match request.path.as_str() {
         "/compile" => {
             let body: Body = serde_json::from_str(&request.body).unwrap();
-            let mut file = std::fs::File::create(&format!("programs/p_{}.rs", body.id)).unwrap();
+            let mut file = std::fs::File::create(format!("programs/p_{}.rs", body.id)).unwrap();
             file.write_all(body.code.as_bytes()).unwrap();
 
             let mut response = Response::new();
-            response.headers.insert("Access-Control-Allow-Origin".to_owned(), "http://localhost:5174".to_owned());
+            response.headers.insert(
+                "Access-Control-Allow-Origin".to_owned(),
+                "http://localhost:5174".to_owned(),
+            );
             stream.write_all(&response.as_bytes()).unwrap();
-            println!("Response sendt");
         }
         _ => todo!("Other paths not implemented yet"),
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::{process::Stdio, io::{BufReader, BufRead}};
+    use std::{
+        io::{BufRead, BufReader},
+        process::Stdio,
+    };
 
     #[test]
     fn test_docker_run_command() {
@@ -140,7 +144,10 @@ mod tests {
             .arg("rust:latest")
             .arg("bash")
             .arg("-c")
-            .arg(format!("cargo new program && cd program && printf '{}' > src/main.rs && cargo run", code))
+            .arg(format!(
+                "cargo new program && cd program && printf '{}' > src/main.rs && cargo run",
+                code
+            ))
             .stdout(Stdio::piped())
             .spawn()
             .expect("Failed to execute docker run command");
@@ -149,7 +156,7 @@ mod tests {
             let stdout = output.stdout.as_mut().unwrap();
             let stdout_reader = BufReader::new(stdout);
             let stdout_lines = stdout_reader.lines();
-    
+
             for line in stdout_lines {
                 println!("Read: {}", line.unwrap());
             }
@@ -157,5 +164,4 @@ mod tests {
 
         output.wait().unwrap();
     }
-
 }

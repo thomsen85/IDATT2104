@@ -1,10 +1,10 @@
-use std::{net::{TcpListener, TcpStream, Shutdown}, io::{Read, BufReader, BufRead, Write, self}};
+use std::{
+    io::{self, Read, Write},
+    net::{Shutdown, TcpStream},
+};
 
 use crate::{bitbuilder::BitBuilder, http::Request};
-use base64::{
-    self,
-    Engine as _,
-};
+use base64::{self, Engine as _};
 use sha1::{Digest, Sha1};
 const HASH_KEY: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -18,7 +18,7 @@ pub struct SocketMessage {
     mask: bool,
     payload_len: u32,
     mask_key: Vec<u8>,
-    pub payload: String
+    pub payload: String,
 }
 
 impl SocketMessage {
@@ -96,6 +96,11 @@ impl SocketMessage {
 
         bitbuilder.append_bits(&payload_len_to_bits(self.payload_len));
 
+        if self.mask {
+            bitbuilder.append_bytes(&self.mask_key);
+            todo!("Masking payload not yet implemented");
+        }
+
         bitbuilder.append_bytes(self.payload.as_bytes());
 
         bitbuilder.as_bytes().to_vec()
@@ -142,24 +147,29 @@ pub struct SocketStream {
     tcp_stream: TcpStream,
 }
 
-
 impl SocketStream {
-    pub fn accept(http_request: Request, mut tcp_stream: TcpStream) -> Result<Self, std::io::Error> {
+    pub fn accept(
+        http_request: Request,
+        mut tcp_stream: TcpStream,
+    ) -> Result<Self, std::io::Error> {
         if let Some(upgrade) = http_request.headers.get("Upgrade") {
             if upgrade != "websocket" {
-                return Err(std::io::Error::new(std::io::ErrorKind::Other, "Not a websocket request"));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Not a websocket request",
+                ));
             }
         } else {
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, "Not a websocket request"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Not a websocket request",
+            ));
         }
-
 
         let accept_response = Self::_get_accept_response(&http_request);
         tcp_stream.write_all(accept_response.as_bytes())?;
 
-        Ok(Self {
-            tcp_stream
-        })
+        Ok(Self { tcp_stream })
     }
 
     pub fn close(self) {
@@ -168,25 +178,26 @@ impl SocketStream {
 
     fn _get_accept_response(http_request: &Request) -> String {
         let mut web_sock_key = http_request
-        .headers
-        .get("Sec-WebSocket-Key")
-        .expect("No header Sec-WebSocket-Key")
-        .to_owned();
-    web_sock_key.push_str(HASH_KEY);
+            .headers
+            .get("Sec-WebSocket-Key")
+            .expect("No header Sec-WebSocket-Key")
+            .to_owned();
+        web_sock_key.push_str(HASH_KEY);
 
-    let mut hasher = Sha1::new();
-    hasher.update(web_sock_key.as_bytes());
+        let mut hasher = Sha1::new();
+        hasher.update(web_sock_key.as_bytes());
 
-    let hash = base64::engine::general_purpose::STANDARD.encode(hasher.finalize());
+        let hash = base64::engine::general_purpose::STANDARD.encode(hasher.finalize());
 
-    format!("\
+        format!(
+            "\
         HTTP/1.1 101 Switching Protocols\r\n\
         Upgrade: websocket\r\n\
         Connection: Upgrade\r\n\
         Sec-WebSocket-Accept: {hash}\r\n\
         Sec-WebSocket-Protocol: chat\r\n\n"
-    )
-}
+        )
+    }
 
     pub fn send_message(&mut self, message: &SocketMessage) -> io::Result<()> {
         self.tcp_stream.write_all(&message.to_bytes())
@@ -205,9 +216,7 @@ impl SocketStream {
 
     pub fn try_clone(&self) -> io::Result<Self> {
         Ok(Self {
-            tcp_stream: self.tcp_stream.try_clone()?
+            tcp_stream: self.tcp_stream.try_clone()?,
         })
     }
 }
-
-

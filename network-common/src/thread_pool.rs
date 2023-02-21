@@ -3,8 +3,10 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-pub struct Pool<F> where
-F: FnOnce() + Send + 'static {
+pub struct Pool<F>
+where
+    F: FnOnce() + Send + 'static,
+{
     workers: u32,
     tasks: Arc<Mutex<VecDeque<F>>>,
     condvar: Arc<(Mutex<bool>, Condvar)>,
@@ -12,8 +14,10 @@ F: FnOnce() + Send + 'static {
     running: Arc<Mutex<bool>>,
 }
 
-impl<F> Pool<F> where
-F: FnOnce() + Send + 'static {
+impl<F> Pool<F>
+where
+    F: FnOnce() + Send + 'static,
+{
     pub fn new(workers: u32) -> Self {
         Self {
             workers,

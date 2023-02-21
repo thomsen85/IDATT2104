@@ -1,6 +1,6 @@
-pub mod thread_pool;
-pub mod http;
 pub mod bitbuilder;
+pub mod http;
+pub mod thread_pool;
 pub mod websockets;
 
 #[cfg(test)]
@@ -34,9 +34,9 @@ mod tests {
 
         dbg!(&builder);
 
-        assert_eq!(builder.get_bit(0+8), Some(true));
-        assert_eq!(builder.get_bit(1+8), Some(false));
-        assert_eq!(builder.get_bit(2+8), Some(false));
+        assert_eq!(builder.get_bit(0 + 8), Some(true));
+        assert_eq!(builder.get_bit(1 + 8), Some(false));
+        assert_eq!(builder.get_bit(2 + 8), Some(false));
     }
 
     #[test]
@@ -50,7 +50,6 @@ mod tests {
 
         assert_eq!(builder.get_bit(2), None);
         assert_eq!(builder.get_bit(20), None);
-
     }
 
     #[test]
@@ -68,6 +67,5 @@ mod tests {
         assert_eq!(builder.get_bit(6), Some(true));
         assert_eq!(builder.get_bit(7), Some(false));
         assert_eq!(builder.get_bit(8), Some(true));
-
     }
 }

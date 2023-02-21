@@ -1,7 +1,12 @@
 use std::{collections::HashMap, str::FromStr};
 
 use itertools::Itertools;
-use nom::{IResult, bytes::complete::{tag, take_until}, multi::separated_list1, character::complete::multispace1};
+use nom::{
+    bytes::complete::{tag, take_until},
+    character::complete::multispace1,
+    multi::separated_list1,
+    IResult,
+};
 
 #[derive(Debug)]
 pub enum Method {
@@ -28,7 +33,7 @@ impl FromStr for Method {
             "CONNECT" => Ok(Method::CONNECT),
             "OPTIONS" => Ok(Method::OPTIONS),
             "TRACE" => Ok(Method::TRACE),
-            _ => Err("Failed to parse method")
+            _ => Err("Failed to parse method"),
         }
     }
 }
@@ -38,7 +43,7 @@ pub struct Request {
     pub method: Method,
     pub path: String,
     pub headers: HashMap<String, String>,
-    pub body: String
+    pub body: String,
 }
 
 impl From<String> for Request {
@@ -54,25 +59,45 @@ fn _parse_method(input: &str) -> IResult<&str, Request> {
 
     let (input, path) = nom::bytes::complete::take_until("\r\n")(input)?;
     let (_, path) = nom::bytes::complete::take_until(" ")(path)?;
-    
-    let (input, headers) = take_until("\r\n\r\n")(input)?;
-    let (_, headers) = separated_list1(multispace1, nom::bytes::complete::take_until("\r\n"))(headers)?;
 
-    let headers = headers.into_iter().map(|header| {
-        if header.find(':').is_some() {
-            let (key, value) = header.split(": ").next_tuple().unwrap();
-            (key.to_string(), value.to_string())
-        } else {
-            (header.to_string(), "".to_string())
-        }
-    }).collect();
+    let (input, headers) = take_until("\r\n\r\n")(input)?;
+    let (_, headers) =
+        separated_list1(multispace1, nom::bytes::complete::take_until("\r\n"))(headers)?;
+
+    let headers = headers
+        .into_iter()
+        .map(|header| {
+            if header.find(':').is_some() {
+                let (key, value) = header.split(": ").next_tuple().unwrap();
+                (key.to_string(), value.to_string())
+            } else {
+                (header.to_string(), "".to_string())
+            }
+        })
+        .collect();
 
     if input.len() > 4 {
         let (input, _) = tag("\r\n\r\n")(input)?;
-        return Ok((input, Request { method, path: path.to_string(), headers, body: input.to_string() }))
+        return Ok((
+            input,
+            Request {
+                method,
+                path: path.to_string(),
+                headers,
+                body: input.to_string(),
+            },
+        ));
     }
 
-    Ok((input, Request { method, path: path.to_string(), headers, body: input.to_string() }))
+    Ok((
+        input,
+        Request {
+            method,
+            path: path.to_string(),
+            headers,
+            body: input.to_string(),
+        },
+    ))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -100,7 +125,7 @@ pub struct Response {
     pub http_version: String,
     pub status: u16,
     pub headers: HashMap<String, String>,
-    pub body: String
+    pub body: String,
 }
 
 impl Response {
@@ -123,14 +148,13 @@ impl Response {
     }
 }
 
-
 impl Default for Response {
     fn default() -> Self {
         Response {
             http_version: "HTTP/1.1".to_string(),
             status: StatusCode::OK as u16,
             headers: HashMap::new(),
-            body: "".to_string()
+            body: "".to_string(),
         }
     }
 }
