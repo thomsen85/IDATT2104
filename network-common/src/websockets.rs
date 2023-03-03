@@ -172,8 +172,8 @@ impl SocketStream {
         Ok(Self { tcp_stream })
     }
 
-    pub fn close(self) {
-        self.tcp_stream.shutdown(Shutdown::Both).unwrap();
+    pub fn close(self) -> io::Result<()> {
+        self.tcp_stream.shutdown(Shutdown::Both)
     }
 
     fn _get_accept_response(http_request: &Request) -> String {

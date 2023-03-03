@@ -115,7 +115,7 @@ fn handle_post_request(request: Request, mut stream: TcpStream) {
             let mut response = Response::new();
             response.headers.insert(
                 "Access-Control-Allow-Origin".to_owned(),
-                "http://localhost:5174".to_owned(),
+                "http://localhost:5173".to_owned(),
             );
             stream.write_all(&response.as_bytes()).unwrap();
         }
